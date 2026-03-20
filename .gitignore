@@ -1,0 +1,43 @@
+rknn*
+# 系统文件（Linux/Mac/Windows 通用）
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.log
+
+# 编程语言/框架依赖（按需保留）
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+venv/
+env/
+# Node.js
+node_modules/
+npm-debug.log
+yarn.lock
+# Java
+target/
+*.jar
+# C/C++
+*.o
+*.out
+build/
+
+# 项目无关文件
+tmp/
+cache/
+backup/
+*.zip
+*.rar
+dist/
+# model
+*.rkllm
+sherpa-onnx/
+*.rknn
+*.onnx

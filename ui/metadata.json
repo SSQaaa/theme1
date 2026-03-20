@@ -1,0 +1,8 @@
+{
+  "name": "Sleep Soothing System",
+  "description": "A high-tech, futuristic sleep aid application featuring emotion detection and immersive sleep induction modes.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

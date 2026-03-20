@@ -1,0 +1,91 @@
+import requests
+import time
+
+HA_URL = "http://192.168.31.159:8123"
+TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJkZDA0ZDg2OWZjM2Q0ODY5ODczY2M1N2JkMTA3ZGNhZSIsImlhdCI6MTc2OTc3NDE0NywiZXhwIjoyMDg1MTM0MTQ3fQ._VeqQyM-7DrY4PxF2-72uiIJE-nQIfJJ7dz_s5WLVgc"
+ENTITY_ID = "light.sperll_cct2_c60c_light"
+
+headers = {
+    "Authorization": f"Bearer {TOKEN}",
+    "Content-Type": "application/json"
+}
+
+mode_dict = {
+    1: "Breath",
+    2: "stars",
+    3: "Meteor",
+    4: "Comet Spin",
+    5: "Dot Spin",
+    6: "Segment Spin",
+    7: "Chasing Dots",
+    8: "Comet",
+    9: "Comet2",
+    10: "Wave",
+    11: "Stacking",
+    12: "Flowing Water",
+    13: "Glitter",
+    14: "Drip",
+    15: "Juggle",
+    16: "Lightning",
+    17: "Dissolve",
+    18: "Night Lake",
+    19: "Scan",
+    20: "Ripple",
+    21: "Bouncing Ball",
+    22: "Blink",
+    23: "Force",
+    24: "Hits",
+    25: "Ejection",
+    26: "Static",
+    27: "Night",
+    28: "Warmth",
+    29: "Entertainment",
+    30: "Lighting"
+}
+
+def turn_on():
+    url = f"{HA_URL}/api/services/light/turn_on"
+    data = {"entity_id": ENTITY_ID}
+    requests.post(url, headers=headers, json=data)
+    print("TURN ON")
+
+def turn_off():
+    url = f"{HA_URL}/api/services/light/turn_off"
+    data = {"entity_id": ENTITY_ID}
+    requests.post(url, headers=headers, json=data)
+    print("TURN OFF")
+
+def set_mode(mode):
+    url = f"{HA_URL}/api/services/light/turn_on"
+    data = {
+        "entity_id": ENTITY_ID,
+        "effect_list": mode 
+    }
+    requests.post(url, headers=headers, json=data)
+    print("Set Mode:", mode_dict.get(mode))
+
+def set_brightness(brightness):
+    url = f"{HA_URL}/api/services/light/turn_on"
+    data = {
+        "entity_id": ENTITY_ID,
+        "brightness": brightness  # 0~100
+    }
+    requests.post(url, headers=headers, json=data)
+    print("Set Brightness:", brightness)
+
+def set_ColorTemperature(ct):
+    url = f"{HA_URL}/api/services/light/turn_on"
+    data = {
+        "entity_id": ENTITY_ID,
+        "color_temp": ct  # 2700-6500K                                
+    }
+    requests.post(url, headers=headers, json=data)
+    print("Set Color Temperature:", ct)
+
+if __name__ == "__main__":
+    turn_on()
+    time.sleep(2)
+    set_mode(29)
+    time.sleep(5)
+    set_brightness(100)
+
