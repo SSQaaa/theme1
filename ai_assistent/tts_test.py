@@ -3,8 +3,8 @@ import edge_tts
 import subprocess
 import os
 
-MP3_PATH = "wake.mp3"
-WAV_PATH = "wake.wav"
+MP3_PATH = "jiashiqi.mp3"
+WAV_PATH = "jiashiqi.wav"
 
 async def tts(text):
 
@@ -28,4 +28,4 @@ async def tts(text):
     ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 if __name__ == "__main__":
-    asyncio.run(tts("俺困困大王来也！"))
+    asyncio.run(tts("好的，已为您开启加湿器，希望干燥的环境能快点变得舒适！"))

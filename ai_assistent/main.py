@@ -9,6 +9,8 @@ import threading
 from Sherpa_onnx_stt import SpeechToText
 import re
 from streaming_tts import StreamingEdgeTTS
+from KWS_Control import control, text_to_keyword
+from HA import set_brightness
 
 # INITIALIZE
 FS = 16000
@@ -18,6 +20,9 @@ RKLLM_URL = "http://127.0.0.1:8080/rkllm_chat"
 ASSISTANT_EVENT_URL = os.getenv("ASSISTANT_EVENT_URL", "http://127.0.0.1:8000/api/assistant/event")
 DB_THRESHOLD = -30   # 分贝阈值，float32 范围 [-1,1]
 FRAME_DURATION = 0.5  # 每帧 0.5 秒
+is_speaking = False
+
+brightness = 50  # 初始亮度，0~100
 
 # detect ALSA devices (input/output) at runtime instead of hardcoding
 def find_alsa_device(kind: str, prefer: tuple[str, ...] = ()): 
@@ -112,11 +117,21 @@ def aplay_cmd_for(wav_path: str):
     cmd.append(wav_path)
     return cmd
 
+def safe_play_wav(wav_path):
+    global is_speaking
+
+    is_speaking = True
+    try:
+        subprocess.run(aplay_cmd_for(wav_path))
+    finally:
+        is_speaking = False
+
 # ============================
 # 0. 监听唤醒 + 分贝监听
 # ============================
  
 wake_engine = WakeEngine()
+wake_engine.start()
 
 def send_assistant_event(event_type, text=None):
     if not ASSISTANT_EVENT_URL:
@@ -135,23 +150,28 @@ def wake_listen_loop():
     while True:
         keywords = wake_engine.detect_keywords()  # 阻塞也没关系，线程单独跑
         print("keywords detected:", keywords, flush=True)
-        if keywords == "wake" and not wake_state:
-            wake_cmd = aplay_cmd_for("wake.wav")
+
+        if is_speaking:
+            time.sleep(0.05)
+            continue
+
+        if control(keywords, brightness, safe_play_wav):
+            continue
+
+        elif keywords == "wake" and not wake_state:
             # print("KUNKUN WOKE UP!", flush=True)
             wake_state = True
             send_assistant_event("wake")
             time.sleep(0.5) 
-            subprocess.run(wake_cmd)
+            safe_play_wav("wake.wav")
         elif keywords == "exit" and wake_state:
-            exit_cmd = aplay_cmd_for("exit.wav")
             # print("KUNKUN EXITED!", flush=True)
             wake_state = False
             recorder.stop()
             send_assistant_event("close")
             time.sleep(0.5) 
-            subprocess.run(exit_cmd)
+            safe_play_wav("exit.wav")
         
-
         time.sleep(0.02)
       
 # ============================
@@ -226,12 +246,18 @@ if __name__ == "__main__":
     wake_state = False
     record_duration = 0
 
+    set_brightness(brightness)  # 初始亮度
+
     threading.Thread(target=wake_listen_loop, daemon=True).start()
 
     try:
         while True:
             # print("Wake State:", wake_state, flush=True)
             if wake_state == True:
+                if is_speaking:
+                    time.sleep(0.05)
+                    continue
+
                 recorder.reset()
                 # print("被唤醒了！准备录音...")
                 time.sleep(3)  # 等待2秒，避免录到刚唤醒时的声音
@@ -249,13 +275,18 @@ if __name__ == "__main__":
 
                 text = stt.transcribe_file(audio_path)
                 # 如果检测为空则跳回主循环继续等待下一次录音。这避免将空输入送入 LLM 或播放空白 TTS。
-                if text.strip() == "":
+                if text.strip() == "" or len(text.strip()) == 1:
                     print("NO INPUT DETECTED, SKIPPING...")
                     continue
 
-                if "质量好差" in text:
-                    llm_reply = "好的，已帮您开启空气净化器"
-                    print("KunKun says:", "好的，已帮您开启空气净化器")
+                # if "质量好差" in text:
+                #     llm_reply = "好的，已帮您开启空气净化器"
+                #     print("KunKun says:", "好的，已帮您开启空气净化器")
+
+                control_kws = text_to_keyword(text)
+                if control_kws:
+                    control(control_kws, brightness, safe_play_wav)
+                    continue
 
                 else:
                     send_assistant_event("thinking")
@@ -263,7 +294,11 @@ if __name__ == "__main__":
                     print("KunKun says:", llm_reply)
 
                 send_assistant_event("reply", text=llm_reply)
-                stream_tts.speak(llm_reply)
+                is_speaking = True
+                try:
+                    stream_tts.speak(llm_reply)
+                finally:
+                    is_speaking = False
                 send_assistant_event("reply_done")
 
                 time.sleep(0.02)
