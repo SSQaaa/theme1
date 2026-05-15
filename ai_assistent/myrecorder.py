@@ -12,12 +12,14 @@ class Recorder:
         threshold_db=-35,
         silence_timeout=1.2,   # 静音超过 1.2 秒自动停止
         min_record_time=1,   # 少于 1 秒的录音丢弃
+        device=None,
     ):
         self.samplerate = samplerate
         self.channels = channels
         self.threshold_db = threshold_db
         self.silence_timeout = silence_timeout
         self.min_record_time = min_record_time
+        self.device = device
 
         self.state = "IDLE"
         self.audio_buffer = []
@@ -88,11 +90,28 @@ class Recorder:
                         self.state = "IDLE"
                         raise sd.CallbackStop()
 
+        # determine sounddevice device index if a device spec was provided
+        sd_device = None
+        if self.device is not None:
+            try:
+                if isinstance(self.device, int):
+                    sd_device = self.device
+                else:
+                    devices = sd.query_devices()
+                    for i, d in enumerate(devices):
+                        name = d.get('name', '').lower()
+                        if str(self.device).lower() in name:
+                            sd_device = i
+                            break
+            except Exception:
+                sd_device = None
+
         with sd.InputStream(
             samplerate=self.samplerate,
             channels=self.channels,
             dtype='float32',
-            callback=callback
+            callback=callback,
+            device=sd_device
         ):
             while not self.record_done and not self.stop_flag:
                 print("state:", self.state, end='\r')

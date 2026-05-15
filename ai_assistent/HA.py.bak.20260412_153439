@@ -1,7 +1,7 @@
 import requests
 import time
 
-HA_URL = "http://192.168.31.161:8123"
+HA_URL = "http://192.168.31.159:8123"
 TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJkZDA0ZDg2OWZjM2Q0ODY5ODczY2M1N2JkMTA3ZGNhZSIsImlhdCI6MTc2OTc3NDE0NywiZXhwIjoyMDg1MTM0MTQ3fQ._VeqQyM-7DrY4PxF2-72uiIJE-nQIfJJ7dz_s5WLVgc"
 ENTITY_ID = "light.sperll_cct2_c60c_light"
 
