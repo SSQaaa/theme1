@@ -8,7 +8,7 @@ from myrecorder import Recorder
 import threading
 from Sherpa_onnx_stt import SpeechToText
 import re
-from streaming_tts import StreamingEdgeTTS
+from streaming_tts import LocalVitsTTS
 from KWS_Control import control, text_to_keyword, control_int
 from HA import set_brightness
 
@@ -221,11 +221,11 @@ def ask_llm(user_text):
     return answer
 
 # ============================
-# 4. Edge TTS 合成语音
+# 4. sherpa-onnx VITS 本地语音合成
 # ============================
 
-# init streaming TTS (overlap generation & playback)
-stream_tts = StreamingEdgeTTS(aplay_device=APLAY_DEVICE)
+# Load the local model once, then synthesize and play replies sentence by sentence.
+stream_tts = LocalVitsTTS(aplay_device=APLAY_DEVICE)
 
 # ============================
 # 5. 播放 WAV

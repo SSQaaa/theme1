@@ -10,16 +10,12 @@ import os
 import queue
 from periphery import GPIO
 import time
-import asyncio
-import edge_tts
-import subprocess
-import os
+from streaming_tts import LocalVitsTTS
 
 
 FS = 16000
 ARECORD_DEVICE = "plughw:rockchipes8388,0"   # 我的录音卡
 whisper_model_size = "base"  # 小模型足够
-MP3_PATH = "output.mp3"
 WAV_PATH = "output.wav"
 RKLLM_URL = "http://127.0.0.1:8080/rkllm_chat"
 
@@ -129,33 +125,13 @@ def ask_llm(user_text):
 
 
 # ============================
-# 4. Edge TTS 合成语音
+# 4. sherpa-onnx VITS 本地语音合成
 # ============================
 
-def tts_edge(text: str) -> str:
-    async def _run():
-        communicate = edge_tts.Communicate(
-            text=text,
-            voice="zh-CN-XiaoxiaoNeural"
-        )
-        await communicate.save(MP3_PATH)
+local_tts = LocalVitsTTS()
 
-    asyncio.run(_run())
-
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-i", MP3_PATH,
-            "-ar", "16000",
-            "-ac", "1",
-            "-sample_fmt", "s16",
-            WAV_PATH
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
-
+def tts_local(text: str) -> str:
+    local_tts.synthesize(text, WAV_PATH)
     return WAV_PATH
 
 # ============================
@@ -195,7 +171,7 @@ if __name__ == "__main__":
                 llm_reply = ask_llm(text)
                 print("KunKun says:", llm_reply)
 
-                Kun_reply = tts_edge(llm_reply)
+                Kun_reply = tts_local(llm_reply)
                 play_audio(Kun_reply)
 
             last_state = state

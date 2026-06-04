@@ -1,31 +1,21 @@
-import asyncio
-import edge_tts
-import subprocess
-import os
+import argparse
 
-MP3_PATH = "muban_off.mp3"
-WAV_PATH = "muban_off.wav"
-
-async def tts(text):
-
-    communicate = edge_tts.Communicate(
-        text=text,
-        voice="zh-CN-XiaoxiaoNeural",
-    )
-
-    await communicate.save(MP3_PATH)
+from streaming_tts import LocalVitsTTS
 
 
-    # MP3 -> WAV（强制成声卡友好格式）
-    subprocess.run([
-        "ffmpeg",
-        "-y",
-        "-i", MP3_PATH,
-        "-ar", "16000",        # 16kHz
-        "-ac", "1",            # mono
-        "-sample_fmt", "s16",  # 16bit
-        WAV_PATH
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Test local sherpa-onnx VITS TTS")
+    parser.add_argument("text", nargs="?", default="我已做好陪伴您入睡的准备了，祝您做个好梦！")
+    parser.add_argument("--output", default="tts_test.wav")
+    parser.add_argument("--play", action="store_true")
+    args = parser.parse_args()
+
+    tts = LocalVitsTTS()
+    tts.synthesize(args.text, args.output)
+    print(f"Saved local TTS audio to: {args.output}")
+    if args.play:
+        tts.speak(args.text)
+
 
 if __name__ == "__main__":
-    asyncio.run(tts("我已做好陪伴您入睡的准备了，祝您做个好梦！"))
+    main()

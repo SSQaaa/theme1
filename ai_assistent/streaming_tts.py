@@ -1,180 +1,123 @@
-import asyncio
 import os
 import re
 import subprocess
 import tempfile
 from dataclasses import dataclass
-from typing import Iterable, List, Optional
+from pathlib import Path
+from typing import List, Optional
 
-import edge_tts
-
-
-_SENT_SPLIT_RE = re.compile(r"(?<=[。！？!?；;])\s*|")
+import sherpa_onnx
+import soundfile as sf
 
 
 def split_sentences(text: str) -> List[str]:
-    """Split Chinese/English text into speakable chunks.
-
-    Keeps punctuation at the end of each sentence.
-    """
-    text = (text or "").strip()
+    """Split Chinese/English text into short chunks for faster first playback."""
+    text = re.sub(r"\s+", " ", (text or "").strip())
     if not text:
         return []
 
-    # Basic normalization: collapse whitespace
-    text = re.sub(r"\s+", " ", text)
-
-    # Prefer punctuation-based splitting
-    parts = re.split(r"(?<=[。！？!?；;])\s*", text)
-    parts = [p.strip() for p in parts if p and p.strip()]
-
-    # Fallback: if no punctuation, chunk by length
+    parts = [
+        part.strip()
+        for part in re.split(r"(?<=[。！？!?；;])\s*", text)
+        if part.strip()
+    ]
     if len(parts) <= 1 and len(text) > 80:
         parts = [text[i : i + 60].strip() for i in range(0, len(text), 60)]
-
     return parts
 
 
 @dataclass
-class StreamingTTSConfig:
-    voice: str = os.getenv("EDGE_TTS_VOICE", "zh-CN-XiaoxiaoNeural")
-    sample_rate: int = 16000
-    channels: int = 1
-    sample_fmt: str = "s16"
-    ffmpeg_bin: str = os.getenv("FFMPEG_BIN", "ffmpeg")
+class LocalVitsTTSConfig:
+    model_dir: str = os.getenv(
+        "SHERPA_TTS_MODEL_DIR",
+        str(Path(__file__).resolve().parent / "vits-melo-tts-zh_en"),
+    )
+    num_threads: int = int(os.getenv("SHERPA_TTS_NUM_THREADS", "2"))
+    provider: str = os.getenv("SHERPA_TTS_PROVIDER", "cpu")
+    speaker_id: int = int(os.getenv("SHERPA_TTS_SID", "0"))
+    speed: float = float(os.getenv("SHERPA_TTS_SPEED", "1.0"))
+    silence_scale: float = float(os.getenv("SHERPA_TTS_SILENCE_SCALE", "0.2"))
+    debug: bool = os.getenv("SHERPA_TTS_DEBUG", "0") == "1"
 
 
-class StreamingEdgeTTS:
-    """Stream-like TTS: synthesize sentence by sentence and play sequentially.
+class LocalVitsTTS:
+    """Local sherpa-onnx VITS synthesis with sentence-by-sentence playback."""
 
-    This is not true audio streaming from edge-tts; instead it overlaps *generation* of
-    the next sentence with *playback* of the current sentence.
-    """
-
-    def __init__(self, aplay_device: Optional[str] = None, config: Optional[StreamingTTSConfig] = None):
+    def __init__(
+        self,
+        aplay_device: Optional[str] = None,
+        config: Optional[LocalVitsTTSConfig] = None,
+    ):
         self.aplay_device = aplay_device
-        self.config = config or StreamingTTSConfig()
+        self.config = config or LocalVitsTTSConfig()
+        self.model_dir = Path(self.config.model_dir).expanduser().resolve()
+        self.tts = self._create_tts()
+
+    def _required_path(self, filename: str) -> str:
+        path = self.model_dir / filename
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"Missing sherpa-onnx VITS file: {path}\n"
+                "Download the model first or set SHERPA_TTS_MODEL_DIR."
+            )
+        return str(path)
+
+    def _create_tts(self) -> sherpa_onnx.OfflineTts:
+        rule_fsts = [
+            str(path)
+            for path in (
+                self.model_dir / "phone.fst",
+                self.model_dir / "date.fst",
+                self.model_dir / "number.fst",
+            )
+            if path.is_file()
+        ]
+        config = sherpa_onnx.OfflineTtsConfig(
+            model=sherpa_onnx.OfflineTtsModelConfig(
+                vits=sherpa_onnx.OfflineTtsVitsModelConfig(
+                    model=self._required_path("model.onnx"),
+                    lexicon=self._required_path("lexicon.txt"),
+                    tokens=self._required_path("tokens.txt"),
+                ),
+                provider=self.config.provider,
+                debug=self.config.debug,
+                num_threads=self.config.num_threads,
+            ),
+            rule_fsts=",".join(rule_fsts),
+        )
+        if not config.validate():
+            raise ValueError(f"Invalid sherpa-onnx VITS config: {self.model_dir}")
+        return sherpa_onnx.OfflineTts(config)
 
     def _aplay_cmd(self, wav_path: str) -> List[str]:
         cmd = ["aplay"]
         if self.aplay_device:
             cmd += ["-D", self.aplay_device]
-        cmd.append(wav_path)
-        return cmd
+        return [*cmd, wav_path]
 
-    async def _synth_to_wav_async(self, text: str, wav_path: str) -> str:
-        # 1) edge-tts to temp mp3
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
-            mp3_path = f.name
+    def synthesize(self, text: str, wav_path: str) -> str:
+        generation_config = sherpa_onnx.GenerationConfig()
+        generation_config.sid = self.config.speaker_id
+        generation_config.speed = self.config.speed
+        generation_config.silence_scale = self.config.silence_scale
 
-        communicate = edge_tts.Communicate(text=text, voice=self.config.voice)
-        await communicate.save(mp3_path)
-
-        # 2) mp3 -> wav (16k mono s16)
-        subprocess.run(
-            [
-                self.config.ffmpeg_bin,
-                "-y",
-                "-i",
-                mp3_path,
-                "-ar",
-                str(self.config.sample_rate),
-                "-ac",
-                str(self.config.channels),
-                "-sample_fmt",
-                self.config.sample_fmt,
-                wav_path,
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-
-        try:
-            os.unlink(mp3_path)
-        except Exception:
-            pass
-
+        audio = self.tts.generate(text, generation_config)
+        if len(audio.samples) == 0:
+            raise RuntimeError("sherpa-onnx generated empty audio")
+        sf.write(wav_path, audio.samples, audio.sample_rate, subtype="PCM_16")
         return wav_path
 
-    def _synth_to_wav(self, text: str, wav_path: str) -> str:
-        return asyncio.run(self._synth_to_wav_async(text, wav_path))
-
-    def speak(self, text: str):
-        """Speak text sentence-by-sentence, overlapping generation and playback."""
-        sentences = split_sentences(text)
-        if not sentences:
-            return
-
-        # Pre-generate first sentence (so we can start playing quickly)
-        first = sentences[0]
-        cur_wav = tempfile.NamedTemporaryFile(suffix=".wav", delete=False).name
-        self._synth_to_wav(first, cur_wav)
-
-        for idx in range(len(sentences)):
-            # Launch next sentence generation in background while playing current
-            next_proc: Optional[subprocess.Popen] = None
-            next_wav: Optional[str] = None
-
-            if idx + 1 < len(sentences):
-                next_wav = tempfile.NamedTemporaryFile(suffix=".wav", delete=False).name
-
-                py_code = """
-import asyncio
-import sys
-import subprocess
-import os
-import edge_tts
-
-async def main():
-    text = sys.argv[1]
-    voice = sys.argv[2]
-    ffmpeg_bin = sys.argv[3]
-    wav_path = sys.argv[4]
-
-    # temp mp3
-    mp3_path = wav_path + '.mp3'
-    communicate = edge_tts.Communicate(text=text, voice=voice)
-    await communicate.save(mp3_path)
-
-    subprocess.run([
-        ffmpeg_bin, '-y', '-i', mp3_path,
-        '-ar', '16000', '-ac', '1', '-sample_fmt', 's16', wav_path
-    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    try:
-        os.unlink(mp3_path)
-    except Exception:
-        pass
-
-asyncio.run(main())
-"""
-                next_proc = subprocess.Popen(
-                    [
-                        "python3",
-                        "-c",
-                        py_code,
-                        sentences[idx + 1],
-                        self.config.voice,
-                        self.config.ffmpeg_bin,
-                        next_wav,
-                    ],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-
-            # Play current
-            subprocess.run(self._aplay_cmd(cur_wav))
-
-            # Cleanup current
+    def speak(self, text: str) -> None:
+        for sentence in split_sentences(text):
+            wav_path = tempfile.NamedTemporaryFile(suffix=".wav", delete=False).name
             try:
-                os.unlink(cur_wav)
-            except Exception:
-                pass
+                self.synthesize(sentence, wav_path)
+                subprocess.run(self._aplay_cmd(wav_path), check=True)
+            finally:
+                try:
+                    os.unlink(wav_path)
+                except OSError:
+                    pass
 
-            # Wait for next (if any) and roll forward
-            if next_proc is not None and next_wav is not None:
-                next_proc.wait()
-                cur_wav = next_wav
 
-
-__all__ = ["StreamingEdgeTTS", "StreamingTTSConfig", "split_sentences"]
+__all__ = ["LocalVitsTTS", "LocalVitsTTSConfig", "split_sentences"]
