@@ -14,7 +14,7 @@ def main() -> None:
     tts.synthesize(args.text, args.output)
     print(f"Saved local TTS audio to: {args.output}")
     if args.play:
-        tts.speak(args.text)
+        tts.play(args.output)
 
 
 if __name__ == "__main__":

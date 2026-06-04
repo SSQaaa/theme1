@@ -36,7 +36,6 @@ class LocalVitsTTSConfig:
     provider: str = os.getenv("SHERPA_TTS_PROVIDER", "cpu")
     speaker_id: int = int(os.getenv("SHERPA_TTS_SID", "0"))
     speed: float = float(os.getenv("SHERPA_TTS_SPEED", "1.0"))
-    silence_scale: float = float(os.getenv("SHERPA_TTS_SILENCE_SCALE", "0.2"))
     debug: bool = os.getenv("SHERPA_TTS_DEBUG", "0") == "1"
 
 
@@ -96,23 +95,31 @@ class LocalVitsTTS:
         return [*cmd, wav_path]
 
     def synthesize(self, text: str, wav_path: str) -> str:
-        generation_config = sherpa_onnx.GenerationConfig()
-        generation_config.sid = self.config.speaker_id
-        generation_config.speed = self.config.speed
-        generation_config.silence_scale = self.config.silence_scale
-
-        audio = self.tts.generate(text, generation_config)
+        # sherpa-onnx 1.12.28 exposes GenerationConfig, but its VITS backend
+        # does not implement that overload. The legacy keyword API works for
+        # VITS and remains compatible with newer sherpa-onnx releases.
+        audio = self.tts.generate(
+            text,
+            sid=self.config.speaker_id,
+            speed=self.config.speed,
+        )
         if len(audio.samples) == 0:
-            raise RuntimeError("sherpa-onnx generated empty audio")
+            raise RuntimeError(
+                "sherpa-onnx VITS generated empty audio. Check that the model "
+                "matches the installed sherpa-onnx version."
+            )
         sf.write(wav_path, audio.samples, audio.sample_rate, subtype="PCM_16")
         return wav_path
+
+    def play(self, wav_path: str) -> None:
+        subprocess.run(self._aplay_cmd(wav_path), check=True)
 
     def speak(self, text: str) -> None:
         for sentence in split_sentences(text):
             wav_path = tempfile.NamedTemporaryFile(suffix=".wav", delete=False).name
             try:
                 self.synthesize(sentence, wav_path)
-                subprocess.run(self._aplay_cmd(wav_path), check=True)
+                self.play(wav_path)
             finally:
                 try:
                     os.unlink(wav_path)
