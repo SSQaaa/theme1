@@ -9,7 +9,7 @@ import threading
 from Sherpa_onnx_stt import SpeechToText
 import re
 from streaming_tts import StreamingEdgeTTS
-from KWS_Control import control, text_to_keyword
+from KWS_Control import control, text_to_keyword, control_int
 from HA import set_brightness
 
 # INITIALIZE
@@ -18,7 +18,7 @@ MP3_PATH = "output.mp3"
 WAV_PATH = "output.wav"
 RKLLM_URL = "http://127.0.0.1:8080/rkllm_chat"
 ASSISTANT_EVENT_URL = os.getenv("ASSISTANT_EVENT_URL", "http://127.0.0.1:8000/api/assistant/event")
-DB_THRESHOLD = -30   # 分贝阈值，float32 范围 [-1,1]
+DB_THRESHOLD = -23   # 分贝阈值，float32 范围 [-1,1]
 FRAME_DURATION = 0.5  # 每帧 0.5 秒
 is_speaking = False
 
@@ -178,11 +178,19 @@ def wake_listen_loop():
 # 1. 录音 → 保存 WAV
 # ============================
 
+# recorder = Recorder(
+#     samplerate=FS,
+#     threshold_db=DB_THRESHOLD,
+#     silence_timeout=1.2,
+#     min_record_time=0.8,
+#     device=ARECORD_DEVICE
+# )
 recorder = Recorder(
     samplerate=FS,
     threshold_db=DB_THRESHOLD,
-    silence_timeout=1.2,
-    min_record_time=1.0,
+    silence_timeout=1.8,
+    min_record_time=0.8,
+    max_record_time=12.0,
     device=ARECORD_DEVICE
 )
 
@@ -248,6 +256,9 @@ if __name__ == "__main__":
 
     set_brightness(brightness)  # 初始亮度
 
+    control_int() 
+    print("进入主循环，等待唤醒词...", flush=True)
+
     threading.Thread(target=wake_listen_loop, daemon=True).start()
 
     try:
@@ -279,9 +290,9 @@ if __name__ == "__main__":
                     print("NO INPUT DETECTED, SKIPPING...")
                     continue
 
-                # if "质量好差" in text:
-                #     llm_reply = "好的，已帮您开启空气净化器"
-                #     print("KunKun says:", "好的，已帮您开启空气净化器")
+                # if "有点焦虑，睡不着" or "有点焦虑睡不着" in text:
+                #     llm_reply = "现在不用强迫自己睡着，你可以试试把注意力放在呼吸上。用鼻子慢慢吸气，心里默数到四，再轻轻呼气，数到六，重复几次，让身体先安静下来。"
+                #     print("KunKun says:", "现在不用强迫自己睡着，你可以试试把注意力放在呼吸上。用鼻子慢慢吸气，心里默数到四，再轻轻呼气，数到六，重复几次，让身体先安静下来。")
 
                 control_kws = text_to_keyword(text)
                 if control_kws:

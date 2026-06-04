@@ -37,7 +37,26 @@ backup/
 *.rar
 dist/
 # model
-*.rkllm
+#*.rkllm
 sherpa-onnx/
+#*.rknn
+#*.onnx
+
+# 大模型 / 推理模型
+*.rkllm
 *.rknn
 *.onnx
+*.pt
+*.pth
+*.joblib
+*.engine
+*.bin
+*.safetensors
+
+# 大型第三方库 / SDK
+ai_assistent/rknn-llm-release-v1.2.3/
+ai_assistent/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/
+
+# 音频测试文件
+*.wav
+*.mp3

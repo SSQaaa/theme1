@@ -9,7 +9,7 @@ import platform
 
 # ==================== 串口配置（可修改） ====================
 # 串口设备路径
-SERIAL_PORT = "/dev/ttyS3"  # 香橙派常用串口，也可能是 /dev/ttyS1 或 /dev/ttyUSB0
+SERIAL_PORT = "/dev/ttyS6"  # 香橙派常用串口，也可能是 /dev/ttyS1 或 /dev/ttyUSB0
 
 # 串口参数
 BAUD_RATE = 115200            # 波特率：9600, 115200 等

@@ -21,6 +21,7 @@ KEYWORD_ACTIONS = {
     "关灯": "light_off",
     "调高亮度": "light_up",
     "调低亮度": "light_down",
+    "你回去吧": "muban_off",
 
 }
 class WakeEngine:

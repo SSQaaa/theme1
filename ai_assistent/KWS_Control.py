@@ -15,6 +15,29 @@ ser_mu = serial.Serial(
     timeout=0.1
 )
 
+def control_int():
+    # 木板
+    ser_mu.write(b'\x61')  # 失能
+    ser_mu.flush()
+    time.sleep(0.5)
+    ser_mu.write(b'\x07')  # 定义为0度
+    ser_mu.flush()
+    time.sleep(0.5)
+    ser_mu.write(b'\x60')  # 使能
+    ser_mu.flush()
+    time.sleep(0.5)
+
+    # 转盘
+    ser_zhuan.write(b'\x61')  # 失能
+    ser_zhuan.flush()
+    time.sleep(0.5)
+    ser_zhuan.write(b'\x07')  # 定义为0度
+    ser_zhuan.flush()
+    time.sleep(0.5)
+    ser_zhuan.write(b'\x60')  # 使能
+    ser_zhuan.flush()
+    time.sleep(0.5)
+
 def text_to_keyword(text):
     if "耳塞" in text:
         return "ersai"
@@ -30,16 +53,27 @@ def text_to_keyword(text):
         return "light_up"
     elif "调低亮度" in text or "暗一点" in text:
         return "light_down"
+    # elif "你回去吧" in text:
+    #     return "muban_off"
+
     return None
 
 def control(keywords, brightness, safe_play_wav):
     if keywords == "muban":
         # print("KUNKUN WOKE UP!", flush=True)
         time.sleep(0.5) 
-        ser_mu.write(b'\x02')  # 木板转动90度
+        ser_mu.write(b'\x03')  # 木板转动90度
         ser_mu.flush()
         safe_play_wav("muban.wav")
         return True
+    
+    # if keywords == "muban_off":
+    #     # print("KUNKUN WOKE UP!", flush=True)
+    #     time.sleep(0.5) 
+    #     ser_mu.write(b'\x01')  # 木板转动90度
+    #     ser_mu.flush()
+    #     safe_play_wav("muban_off.wav")
+    #     return True
 
     elif keywords == "light_up":
         # print("KUNKUN WOKE UP!", flush=True)
