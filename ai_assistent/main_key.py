@@ -10,13 +10,18 @@ import os
 import queue
 from periphery import GPIO
 import time
-from streaming_tts import LocalVitsTTS
+from audio_paths import wav_path as resolve_wav_path
+from streaming_tts import LocalVitsTTS, OnlineEdgeTTS
 
 
 FS = 16000
 ARECORD_DEVICE = "plughw:rockchipes8388,0"   # 我的录音卡
 whisper_model_size = "base"  # 小模型足够
-WAV_PATH = "output.wav"
+TTS_MODE = "offline"  # "offline" 使用 VITS；"online" 使用 Edge TTS
+if TTS_MODE not in ("offline", "online"):
+    raise ValueError("TTS_MODE must be 'offline' or 'online'")
+USE_VITS_AUDIO = TTS_MODE == "offline"
+WAV_PATH = str(resolve_wav_path("output.wav", prefer_vits=USE_VITS_AUDIO))
 RKLLM_URL = "http://127.0.0.1:8080/rkllm_chat"
 
 
@@ -128,7 +133,7 @@ def ask_llm(user_text):
 # 4. sherpa-onnx VITS 本地语音合成
 # ============================
 
-local_tts = LocalVitsTTS()
+local_tts = LocalVitsTTS() if TTS_MODE == "offline" else OnlineEdgeTTS()
 
 def tts_local(text: str) -> str:
     local_tts.synthesize(text, WAV_PATH)
@@ -137,8 +142,13 @@ def tts_local(text: str) -> str:
 # ============================
 # 5. 播放 WAV
 # ============================
-def play_audio(wav_path):
-    cmd = ["aplay", "-D", "plughw:rockchipes8388,0", wav_path]
+def play_audio(wav_file):
+    cmd = [
+        "aplay",
+        "-D",
+        "plughw:rockchipes8388,0",
+        str(resolve_wav_path(wav_file, prefer_vits=USE_VITS_AUDIO)),
+    ]
     print("播放音频...")
     subprocess.run(cmd)
 
@@ -147,7 +157,12 @@ def play_audio(wav_path):
 # ============================
 if __name__ == "__main__":
     # 开机欢迎
-    cmd = ["aplay", "-D", "plughw:rockchipes8388,0", "welcome.wav"]
+    cmd = [
+        "aplay",
+        "-D",
+        "plughw:rockchipes8388,0",
+        str(resolve_wav_path("welcome.wav", prefer_vits=USE_VITS_AUDIO)),
+    ]
     print("Press the bottom to talk with Senbeier")
     subprocess.run(cmd)
     

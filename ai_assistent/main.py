@@ -8,31 +8,27 @@ from myrecorder import Recorder
 import threading
 from Sherpa_onnx_stt import SpeechToText
 import re
-from streaming_tts import LocalVitsTTS
+from audio_paths import wav_path as resolve_wav_path
+from streaming_tts import LocalVitsTTS, OnlineEdgeTTS
 from KWS_Control import control, text_to_keyword, control_int
 from HA import set_brightness
 
 # INITIALIZE
 FS = 16000
-MP3_PATH = "output.mp3"
-WAV_PATH = "output.wav"
 RKLLM_URL = "http://127.0.0.1:8080/rkllm_chat"
 ASSISTANT_EVENT_URL = os.getenv("ASSISTANT_EVENT_URL", "http://127.0.0.1:8000/api/assistant/event")
 DB_THRESHOLD = -23   # 分贝阈值，float32 范围 [-1,1]
 FRAME_DURATION = 0.5  # 每帧 0.5 秒
 is_speaking = False
+wake_state = False
+TTS_MODE = "offline"  # "offline" 使用 VITS；"online" 使用 Edge TTS
+if TTS_MODE not in ("offline", "online"):
+    raise ValueError("TTS_MODE must be 'offline' or 'online'")
 
 brightness = 50  # 初始亮度，0~100
 
 # detect ALSA devices (input/output) at runtime instead of hardcoding
 def find_alsa_device(kind: str, prefer: tuple[str, ...] = ()): 
-    """Find an ALSA card/device from `arecord -l` (input) or `aplay -l` (output).
-
-    If `prefer` keywords are provided, it will try to match those keywords (case-insensitive)
-    in each device block first; otherwise it falls back to the first device.
-
-    Returns string like 'plughw:2,0' or None if not found.
-    """
     cmd = ["arecord", "-l"] if kind == "input" else ["aplay", "-l"]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -108,13 +104,14 @@ if not APLAY_DEVICE:
 
 print(f"Detected input device: {ARECORD_DEVICE}")
 print(f"Detected output device: {APLAY_DEVICE}")
+print(f"TTS mode: {TTS_MODE}")
 
 # helper to build aplay command with optional device
-def aplay_cmd_for(wav_path: str):
+def aplay_cmd_for(wav_file: str):
     cmd = ["aplay"]
     if APLAY_DEVICE:
         cmd += ["-D", APLAY_DEVICE]
-    cmd.append(wav_path)
+    cmd.append(str(resolve_wav_path(wav_file, prefer_vits=TTS_MODE == "offline")))
     return cmd
 
 def safe_play_wav(wav_path):
@@ -129,9 +126,8 @@ def safe_play_wav(wav_path):
 # ============================
 # 0. 监听唤醒 + 分贝监听
 # ============================
- 
-wake_engine = WakeEngine()
-wake_engine.start()
+
+wake_engine = None
 
 def send_assistant_event(event_type, text=None):
     if not ASSISTANT_EVENT_URL:
@@ -198,7 +194,7 @@ recorder = Recorder(
 # 2. Whisper → 文字
 # ============================
 
-stt = SpeechToText()
+stt = None
 
 # ============================
 # 3. 调用 RKLLM Server
@@ -221,11 +217,35 @@ def ask_llm(user_text):
     return answer
 
 # ============================
-# 4. sherpa-onnx VITS 本地语音合成
+# 4. TTS 语音合成
 # ============================
 
-# Load the local model once, then synthesize and play replies sentence by sentence.
-stream_tts = LocalVitsTTS(aplay_device=APLAY_DEVICE)
+stream_tts = None
+
+def initialize_models():
+    """Load every local speech model before announcing that the system is ready."""
+    global wake_engine, stt, stream_tts
+
+    print("[1/3] KWS ing", flush=True)
+    wake_engine = WakeEngine()
+    print("[1/3] KWS OK", flush=True)
+
+    print("[2/3] STT ing", flush=True)
+    stt = SpeechToText()
+    print("[2/3] STT OK", flush=True)
+
+    if TTS_MODE == "offline":
+        print("[3/3] VITS ing", flush=True)
+        stream_tts = LocalVitsTTS(aplay_device=APLAY_DEVICE)
+        print("[3/3] VITS OK", flush=True)
+    else:
+        print("[3/3] Edge TTS online mode", flush=True)
+        stream_tts = OnlineEdgeTTS(aplay_device=APLAY_DEVICE)
+        print("[3/3] Edge TTS OK", flush=True)
+
+    print("正在启动唤醒词麦克风监听...", flush=True)
+    wake_engine.start()
+    print("ALL model OK, next HA", flush=True)
 
 # ============================
 # 5. 播放 WAV
@@ -245,18 +265,19 @@ def play_audio(wav_path):
 # MAIN
 # ============================
 if __name__ == "__main__":
-    # 开机欢迎
-    cmd = aplay_cmd_for("welcome.wav")
-    print("说“你好，困困”来唤醒我吧！")
-    subprocess.run(cmd)
-    # wake_engine.start()
-
-    wake_state = False
     record_duration = 0
 
-    set_brightness(brightness)  # 初始亮度
+    initialize_models()
 
-    control_int() 
+    set_brightness(brightness)  # 初始亮度
+    print("HA OK", flush=True)
+    control_int()
+    print("KWS control OK", flush=True)
+
+    # welcome.wav means all models and required hardware are ready.
+    print("全部初始化完成，说“你好，困困”来唤醒我吧！", flush=True)
+    subprocess.run(aplay_cmd_for("welcome.wav"), check=True)
+
     print("进入主循环，等待唤醒词...", flush=True)
 
     threading.Thread(target=wake_listen_loop, daemon=True).start()

@@ -7,12 +7,14 @@ import subprocess
 ser_zhuan = serial.Serial(
     port="/dev/ttyS6",      # 转盘
     baudrate=115200,
-    timeout=0.1
+    timeout=0.1,
+    write_timeout=1,
 )
 ser_mu = serial.Serial(
     port="/dev/ttyS7",      # 木板
     baudrate=9600,
-    timeout=0.1
+    timeout=0.1,
+    write_timeout=1,
 )
 
 def control_int():

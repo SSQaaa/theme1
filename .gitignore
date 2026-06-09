@@ -39,6 +39,7 @@ dist/
 # model
 #*.rkllm
 sherpa-onnx/
+WAV/
 #*.rknn
 #*.onnx
 

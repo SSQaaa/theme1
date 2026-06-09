@@ -2,10 +2,11 @@ import sounddevice as sd
 import numpy as np
 import wave
 from faster_whisper import WhisperModel
+from audio_paths import wav_path as resolve_wav_path
 
 FS = 16000       # 采样率
 DURATION = 5     # 秒
-WAV_PATH = "temp.wav"
+WAV_PATH = str(resolve_wav_path("temp.wav"))
 
 # =========================
 # 1. 录音 5 秒

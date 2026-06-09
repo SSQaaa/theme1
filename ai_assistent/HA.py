@@ -1,9 +1,11 @@
+import os
 import requests
 import time
 
 HA_URL = "http://10.255.105.56:8123"
 TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJkZDA0ZDg2OWZjM2Q0ODY5ODczY2M1N2JkMTA3ZGNhZSIsImlhdCI6MTc2OTc3NDE0NywiZXhwIjoyMDg1MTM0MTQ3fQ._VeqQyM-7DrY4PxF2-72uiIJE-nQIfJJ7dz_s5WLVgc"
 ENTITY_ID = "light.sperll_cct2_c60c_light"
+HA_TIMEOUT = float(os.getenv("HA_TIMEOUT", "2"))
 
 headers = {
     "Authorization": f"Bearer {TOKEN}",
@@ -43,17 +45,30 @@ mode_dict = {
     30: "Lighting"
 }
 
+def _post(url, data, label):
+    try:
+        resp = requests.post(
+            url,
+            headers=headers,
+            json=data,
+            timeout=HA_TIMEOUT,
+        )
+        resp.raise_for_status()
+        print(label)
+        return True
+    except requests.RequestException as e:
+        print(f"{label} failed: {e}")
+        return False
+
 def turn_on():
     url = f"{HA_URL}/api/services/light/turn_on"
     data = {"entity_id": ENTITY_ID}
-    requests.post(url, headers=headers, json=data)
-    print("TURN ON")
+    return _post(url, data, "TURN ON")
 
 def turn_off():
     url = f"{HA_URL}/api/services/light/turn_off"
     data = {"entity_id": ENTITY_ID}
-    requests.post(url, headers=headers, json=data)
-    print("TURN OFF")
+    return _post(url, data, "TURN OFF")
 
 def set_mode(mode):
     url = f"{HA_URL}/api/services/light/turn_on"
@@ -61,8 +76,7 @@ def set_mode(mode):
         "entity_id": ENTITY_ID,
         "effect_list": mode 
     }
-    requests.post(url, headers=headers, json=data)
-    print("Set Mode:", mode_dict.get(mode))
+    return _post(url, data, f"Set Mode: {mode_dict.get(mode)}")
 
 def set_brightness(brightness):
     url = f"{HA_URL}/api/services/light/turn_on"
@@ -70,8 +84,7 @@ def set_brightness(brightness):
         "entity_id": ENTITY_ID,
         "brightness": brightness  # 0~100
     }
-    requests.post(url, headers=headers, json=data)
-    print("Set Brightness:", brightness)
+    return _post(url, data, f"Set Brightness: {brightness}")
 
 def set_ColorTemperature(ct):
     url = f"{HA_URL}/api/services/light/turn_on"
@@ -79,8 +92,7 @@ def set_ColorTemperature(ct):
         "entity_id": ENTITY_ID,
         "color_temp": ct  # 2700-6500K                                
     }
-    requests.post(url, headers=headers, json=data)
-    print("Set Color Temperature:", ct)
+    return _post(url, data, f"Set Color Temperature: {ct}")
 
 if __name__ == "__main__":
     turn_on()
