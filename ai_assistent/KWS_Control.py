@@ -2,6 +2,7 @@ import serial
 from WakeEngine import WakeEngine
 import time
 import subprocess
+from umbrella import umbrella_control
 
 
 ser_zhuan = serial.Serial(
@@ -59,6 +60,8 @@ def text_to_keyword(text):
         return "light_down"
     elif "你回去吧" in text:
         return "muban_off"
+    elif "我要睡觉了" in text:
+        return "sleep"
 
     return None
 
@@ -135,6 +138,13 @@ def control(keywords, brightness, safe_play_wav):
         ser_zhuan.write(b'\x04')  # 转盘转到加湿器
         ser_zhuan.flush()
         safe_play_wav("jiashiqi.wav")
+        return True
+
+    elif keywords == "sleep":
+        # print("KUNKUN WOKE UP!", flush=True)
+        time.sleep(0.5) 
+        umbrella_control("open")  # 打开伞
+        safe_play_wav("muban_off.wav")
         return True
 
 
