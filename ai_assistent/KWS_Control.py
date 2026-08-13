@@ -7,12 +7,14 @@ import subprocess
 ser_zhuan = serial.Serial(
     port="/dev/ttyS6",      # 转盘
     baudrate=115200,
-    timeout=0.1
+    timeout=0.1,
+    write_timeout=1,
 )
 ser_mu = serial.Serial(
     port="/dev/ttyS7",      # 木板
     baudrate=9600,
-    timeout=0.1
+    timeout=0.1,
+    write_timeout=1,
 )
 
 def control_int():
@@ -53,8 +55,8 @@ def text_to_keyword(text):
         return "light_up"
     elif "调低亮度" in text or "暗一点" in text:
         return "light_down"
-    # elif "你回去吧" in text:
-    #     return "muban_off"
+    elif "你回去吧" in text:
+        return "muban_off"
 
     return None
 
@@ -67,13 +69,13 @@ def control(keywords, brightness, safe_play_wav):
         safe_play_wav("muban.wav")
         return True
     
-    # if keywords == "muban_off":
-    #     # print("KUNKUN WOKE UP!", flush=True)
-    #     time.sleep(0.5) 
-    #     ser_mu.write(b'\x01')  # 木板转动90度
-    #     ser_mu.flush()
-    #     safe_play_wav("muban_off.wav")
-    #     return True
+    if keywords == "muban_off":
+        # print("KUNKUN WOKE UP!", flush=True)
+        time.sleep(0.5)
+        ser_mu.write(b'\x01')  # 木板转动90度
+        ser_mu.flush()
+        safe_play_wav("muban_off.wav")
+        return True
 
     elif keywords == "light_up":
         # print("KUNKUN WOKE UP!", flush=True)

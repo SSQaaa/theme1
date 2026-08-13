@@ -70,6 +70,15 @@ IS_LINUX = platform.system() == "Linux"
 
 # 获取项目基础目录（自动适配）
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
+
+try:
+    from sensors.LD6002 import LD6002SensorReader
+except ImportError as e:
+    print(f"[LD6002] Failed to import LD6002SensorReader: {e}")
+    LD6002SensorReader = None
 
 # ============================================================
 # Home Assistant light strip integration
@@ -215,7 +224,6 @@ def _color_temp_value_from_percent(attrs: Dict[str, Any], percent: float) -> int
 # EEG / BrainFlow integration
 # ============================================================
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
 EEG_DIR = os.getenv("EEG_DIR") or os.path.join(PROJECT_ROOT, "EEG")
 if EEG_DIR and EEG_DIR not in sys.path:
     sys.path.append(EEG_DIR)
@@ -780,6 +788,8 @@ player_mode = None
 # Sensor reader instance
 # ============================================================
 sensor_reader: Optional[CO2SensorReader] = None
+pm25_reader: Optional[PM25SensorReader] = None
+ld6002_reader: Optional[LD6002SensorReader] = None
 
 def init_sensor_reader():
     """Initialize sensor reader on startup."""
@@ -807,6 +817,75 @@ def init_pm25_reader():
         print("[PM25] PM2.5 reader started")
     except Exception as e:
         print(f"[PM25] Failed to start PM2.5 reader: {e}")
+
+def init_ld6002_reader():
+    """Initialize LD6002 breath and heart-rate radar on startup."""
+    global ld6002_reader
+    if LD6002SensorReader is None:
+        print("[LD6002] LD6002SensorReader not available (import failed)")
+        return
+    try:
+        ld6002_reader = LD6002SensorReader()
+        ld6002_reader.start()
+        print("[LD6002] Breath and heart-rate radar reader started")
+    except Exception as e:
+        print(f"[LD6002] Failed to start reader: {e}")
+
+def attach_ld6002_data(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Attach LD6002 radar data to the common sensor payload."""
+    if ld6002_reader:
+        ld = ld6002_reader.get_data()
+    else:
+        ld = {
+            "is_human": None,
+            "breath_rate": None,
+            "heart_rate": None,
+            "target_range_cm": None,
+            "range_valid": None,
+            "phase": {
+                "total_phase": None,
+                "breath_phase": None,
+                "heart_phase": None,
+            },
+            "tracking_position": {"x": None, "y": None, "z": None},
+            "targets": [],
+            "firmware": {},
+            "last_type": None,
+            "last_raw": "",
+            "timestamp": 0,
+            "connected": False,
+            "error_message": "LD6002 not initialized",
+        }
+
+    ld = dict(ld)
+    ld_timestamp = ld.get("timestamp") or 0
+    is_stale = bool(ld.get("connected")) and (time.time() - float(ld_timestamp) > 1.5)
+    has_human = ld.get("is_human") is True and not is_stale
+
+    if not has_human:
+        ld["breath_rate"] = None
+        ld["heart_rate"] = None
+        ld["target_range_cm"] = None
+        ld["range_valid"] = False if ld.get("is_human") is False else ld.get("range_valid")
+        ld["phase"] = {
+            "total_phase": None,
+            "breath_phase": None,
+            "heart_phase": None,
+        }
+        ld["tracking_position"] = {"x": None, "y": None, "z": None}
+        ld["targets"] = []
+        if is_stale:
+            ld["error_message"] = "LD6002 data stale"
+
+    data["ld6002"] = ld
+    data["is_human"] = ld.get("is_human")
+    data["breath_rate"] = ld.get("breath_rate")
+    data["heart_rate"] = ld.get("heart_rate")
+    data["target_range_cm"] = ld.get("target_range_cm")
+    data["range_valid"] = ld.get("range_valid")
+    data["ld6002_connected"] = ld.get("connected", False)
+    data["ld6002_error"] = ld.get("error_message", "")
+    return data
 
 
 # ============================================================
@@ -1221,6 +1300,8 @@ def sensors():
         data["pm25_connected"] = False
         data["pm25_error"] = ""
 
+    attach_ld6002_data(data)
+
     return {"ok": True, "data": data}
 
 # ============================================================
@@ -1419,13 +1500,14 @@ async def websocket_sensors(websocket: WebSocket):
                 data["pm25_connected"] = False
                 data["pm25_error"] = ""
 
+            attach_ld6002_data(data)
+
             await websocket.send_text(json.dumps({
                 "ok": True,
                 "data": data
             }))
 
-            # Wait 2 seconds (match frontend update interval)
-            await asyncio.sleep(2)
+            await asyncio.sleep(0.25)
 
     except WebSocketDisconnect:
         if not ws_sensors_logged_disconnect:
@@ -1451,6 +1533,8 @@ register_handlers()
 init_sensor_reader()
 
 init_pm25_reader()
+
+init_ld6002_reader()
 
 # ============================================================
 # 10) 启动时初始化转盘串口

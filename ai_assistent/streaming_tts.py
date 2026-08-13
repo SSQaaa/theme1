@@ -1,29 +1,14 @@
 import os
-import re
+import asyncio
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
+import numpy as np
 import sherpa_onnx
 import soundfile as sf
-
-
-def split_sentences(text: str) -> List[str]:
-    """Split Chinese/English text into short chunks for faster first playback."""
-    text = re.sub(r"\s+", " ", (text or "").strip())
-    if not text:
-        return []
-
-    parts = [
-        part.strip()
-        for part in re.split(r"(?<=[。！？!?；;])\s*", text)
-        if part.strip()
-    ]
-    if len(parts) <= 1 and len(text) > 80:
-        parts = [text[i : i + 60].strip() for i in range(0, len(text), 60)]
-    return parts
 
 
 @dataclass
@@ -36,11 +21,22 @@ class LocalVitsTTSConfig:
     provider: str = os.getenv("SHERPA_TTS_PROVIDER", "cpu")
     speaker_id: int = int(os.getenv("SHERPA_TTS_SID", "0"))
     speed: float = float(os.getenv("SHERPA_TTS_SPEED", "1.0"))
+    volume_gain: float = float(os.getenv("SHERPA_TTS_VOLUME_GAIN", "2.0"))
+    target_peak: float = float(os.getenv("SHERPA_TTS_TARGET_PEAK", "0.92"))
     debug: bool = os.getenv("SHERPA_TTS_DEBUG", "0") == "1"
 
 
+@dataclass
+class OnlineEdgeTTSConfig:
+    voice: str = os.getenv("EDGE_TTS_VOICE", "zh-CN-XiaoxiaoNeural")
+    ffmpeg_bin: str = os.getenv("FFMPEG_BIN", "ffmpeg")
+    sample_rate: int = int(os.getenv("EDGE_TTS_SAMPLE_RATE", "16000"))
+    channels: int = 1
+    sample_fmt: str = "s16"
+
+
 class LocalVitsTTS:
-    """Local sherpa-onnx VITS synthesis with sentence-by-sentence playback."""
+    """Local sherpa-onnx VITS synthesis and playback."""
 
     def __init__(
         self,
@@ -108,23 +104,115 @@ class LocalVitsTTS:
                 "sherpa-onnx VITS generated empty audio. Check that the model "
                 "matches the installed sherpa-onnx version."
             )
-        sf.write(wav_path, audio.samples, audio.sample_rate, subtype="PCM_16")
+        samples = self._postprocess_samples(audio.samples)
+        sf.write(wav_path, samples, audio.sample_rate, subtype="PCM_16")
         return wav_path
+
+    def _postprocess_samples(self, samples) -> np.ndarray:
+        samples_np = np.asarray(samples, dtype=np.float32)
+        if samples_np.size == 0:
+            return samples_np
+
+        peak = float(np.max(np.abs(samples_np)))
+        if peak > 1e-6:
+            # First lift quiet VITS output by a configurable gain, then cap the
+            # peak so the PCM_16 WAV stays loud without clipping.
+            samples_np = samples_np * self.config.volume_gain
+            peak = float(np.max(np.abs(samples_np)))
+            if peak > self.config.target_peak:
+                samples_np = samples_np * (self.config.target_peak / peak)
+
+        return np.clip(samples_np, -1.0, 1.0)
 
     def play(self, wav_path: str) -> None:
         subprocess.run(self._aplay_cmd(wav_path), check=True)
 
     def speak(self, text: str) -> None:
-        for sentence in split_sentences(text):
-            wav_path = tempfile.NamedTemporaryFile(suffix=".wav", delete=False).name
+        text = (text or "").strip()
+        if not text:
+            return
+
+        wav_path = tempfile.NamedTemporaryFile(suffix=".wav", delete=False).name
+        try:
+            self.synthesize(text, wav_path)
+            self.play(wav_path)
+        finally:
             try:
-                self.synthesize(sentence, wav_path)
-                self.play(wav_path)
-            finally:
-                try:
-                    os.unlink(wav_path)
-                except OSError:
-                    pass
+                os.unlink(wav_path)
+            except OSError:
+                pass
 
 
-__all__ = ["LocalVitsTTS", "LocalVitsTTSConfig", "split_sentences"]
+class OnlineEdgeTTS:
+    """Online Edge TTS synthesis and playback."""
+
+    def __init__(
+        self,
+        aplay_device: Optional[str] = None,
+        config: Optional[OnlineEdgeTTSConfig] = None,
+    ):
+        self.aplay_device = aplay_device
+        self.config = config or OnlineEdgeTTSConfig()
+
+    def _aplay_cmd(self, wav_path: str) -> List[str]:
+        cmd = ["aplay"]
+        if self.aplay_device:
+            cmd += ["-D", self.aplay_device]
+        return [*cmd, wav_path]
+
+    async def _synthesize_async(self, text: str, wav_path: str) -> str:
+        import edge_tts
+
+        mp3_path = f"{wav_path}.mp3"
+        communicate = edge_tts.Communicate(text=text, voice=self.config.voice)
+        await communicate.save(mp3_path)
+
+        subprocess.run(
+            [
+                self.config.ffmpeg_bin,
+                "-y",
+                "-i",
+                mp3_path,
+                "-ar",
+                str(self.config.sample_rate),
+                "-ac",
+                str(self.config.channels),
+                "-sample_fmt",
+                self.config.sample_fmt,
+                wav_path,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
+
+        try:
+            os.unlink(mp3_path)
+        except OSError:
+            pass
+
+        return wav_path
+
+    def synthesize(self, text: str, wav_path: str) -> str:
+        return asyncio.run(self._synthesize_async(text, wav_path))
+
+    def play(self, wav_path: str) -> None:
+        subprocess.run(self._aplay_cmd(wav_path), check=True)
+
+    def speak(self, text: str) -> None:
+        text = (text or "").strip()
+        if not text:
+            return
+
+        wav_path = tempfile.NamedTemporaryFile(suffix=".wav", delete=False).name
+        try:
+            self.synthesize(text, wav_path)
+            self.play(wav_path)
+        finally:
+            try:
+                os.unlink(wav_path)
+            except OSError:
+                pass
+
+
+__all__ = ["LocalVitsTTS", "LocalVitsTTSConfig", "OnlineEdgeTTS", "OnlineEdgeTTSConfig"]
