@@ -45,8 +45,10 @@ def text_to_keyword(text):
         return "ersai"
     elif "眼罩" in text:
         return "yanzhao"
-    elif "加湿器" in text:
-        return "jiashiqi"
+    # elif "加湿器" in text:
+    #     return "jiashiqi"
+    elif "有点干" in text:
+        return "youdiangan"
     elif "开灯" in text or "打开灯" in text:
         return "light_on"
     elif "关灯" in text or "关闭灯" in text:
@@ -127,11 +129,15 @@ def control(keywords, brightness, safe_play_wav):
         safe_play_wav("yanzhao.wav")
         return True
 
-    elif keywords == "jiashiqi":
+    elif keywords == "youdiangan":
         # print("KUNKUN WOKE UP!", flush=True)
         time.sleep(0.5) 
         ser_zhuan.write(b'\x04')  # 转盘转到加湿器
         ser_zhuan.flush()
         safe_play_wav("jiashiqi.wav")
         return True
+
+
+
+    
     return False
