@@ -73,7 +73,7 @@ def control(keywords, brightness, safe_play_wav):
         time.sleep(3)
         ser_mu.write(b'\x03')  # 顺时针转动120度
         ser_mu.flush()
-        safe_play_wav("/WAV/muban.wav")
+        safe_play_wav("WAV/muban.wav")
         return True
     
     elif keywords == "xianshiping":  # 显示屏
@@ -91,7 +91,7 @@ def control(keywords, brightness, safe_play_wav):
         time.sleep(0.5)
         ser_mu.write(b'\x60')  # 使能
         ser_mu.flush()
-        safe_play_wav("/WAV/welcome_VITS.wav")
+        safe_play_wav("WAV/welcome_VITS.wav")
         return True
     
     elif keywords == "ysxd":   # 雨伞下电
@@ -99,7 +99,7 @@ def control(keywords, brightness, safe_play_wav):
         time.sleep(0.5) 
         ser_mu.write(b'\x61')  # 失能
         ser_mu.flush()
-        safe_play_wav("/WAV/welcome_VITS.wav")
+        safe_play_wav("WAV/welcome_VITS.wav")
         return True
 
     elif keywords == "zpsd":   # 转盘上电
@@ -110,7 +110,7 @@ def control(keywords, brightness, safe_play_wav):
         time.sleep(0.5)
         ser_zhuan.write(b'\x60')  # 使能
         ser_zhuan.flush()
-        safe_play_wav("/WAV/welcome_VITS.wav")
+        safe_play_wav("WAV/welcome_VITS.wav")
         return True
     
     elif keywords == "zpxd":   # 转盘下电
@@ -118,15 +118,15 @@ def control(keywords, brightness, safe_play_wav):
         time.sleep(0.5) 
         ser_zhuan.write(b'\x61')  # 失能
         ser_zhuan.flush()
-        safe_play_wav("/WAV/welcome_VITS.wav")
+        safe_play_wav("WAV/welcome_VITS.wav")
         return True
         
-    elif keywords == "wake":  # 收雨伞
+    elif keywords == "peoplewake":  # 收雨伞
         # print("KUNKUN WOKE UP!", flush=True)
         time.sleep(0.5)
         umbrella_control("close")  # 关闭伞
         time.sleep(2)
-        safe_play_wav("/WAV/welcome_VITS.wav")
+        safe_play_wav("WAV/welcome_VITS.wav")
         return True
 
     elif keywords == "ssz":   # 顺时针
@@ -134,7 +134,7 @@ def control(keywords, brightness, safe_play_wav):
         time.sleep(0.5) 
         ser_zhuan.write(b'\x03')  
         ser_zhuan.flush()
-        safe_play_wav("/WAV/welcome_VITS.wav")
+        safe_play_wav("WAV/welcome_VITS.wav")
         return True
     
     elif keywords == "nsz":   # 逆时针
@@ -142,7 +142,7 @@ def control(keywords, brightness, safe_play_wav):
         time.sleep(0.5) 
         ser_zhuan.write(b'\x02')  
         ser_zhuan.flush()
-        safe_play_wav("/WAV/welcome_VITS.wav")
+        safe_play_wav("WAV/welcome_VITS.wav")
         return True  
 
     elif keywords == "light_up":   # 灯亮度+++++
@@ -151,7 +151,7 @@ def control(keywords, brightness, safe_play_wav):
         from HA import set_brightness
         brightness = min(100, brightness + 10)
         set_brightness(brightness)
-        safe_play_wav("/WAV/light_up.wav")
+        safe_play_wav("WAV/light_up.wav")
         return True
 
     elif keywords == "light_down":  # 亮度------
@@ -160,7 +160,7 @@ def control(keywords, brightness, safe_play_wav):
         from HA import set_brightness
         brightness = max(0, brightness - 10)
         set_brightness(brightness)
-        safe_play_wav("/WAV/light_down.wav")
+        safe_play_wav("WAV/light_down.wav")
         return True
 
     elif keywords == "light_on":   # 开灯
@@ -168,7 +168,7 @@ def control(keywords, brightness, safe_play_wav):
         time.sleep(0.5) 
         from HA import turn_on
         turn_on()
-        safe_play_wav("/WAV/light_on.wav")
+        safe_play_wav("WAV/light_on.wav")
         return True
 
     elif keywords == "light_off":    # 关灯
@@ -176,7 +176,7 @@ def control(keywords, brightness, safe_play_wav):
         time.sleep(0.5) 
         from HA import turn_off
         turn_off()
-        safe_play_wav("/WAV/light_off.wav")
+        safe_play_wav("WAV/light_off.wav")
         return True
 
     elif keywords == "ersai":
@@ -184,7 +184,7 @@ def control(keywords, brightness, safe_play_wav):
         time.sleep(0.5) 
         ser_zhuan.write(b'\x02')  # 转盘转到耳塞
         ser_zhuan.flush()
-        safe_play_wav("/WAV/ersai.wav")
+        safe_play_wav("WAV/ersai.wav")
         return True
 
     elif keywords == "yanzhao":
@@ -192,7 +192,7 @@ def control(keywords, brightness, safe_play_wav):
         time.sleep(0.5) 
         ser_zhuan.write(b'\x03')  # 转盘转到眼罩
         ser_zhuan.flush()
-        safe_play_wav("/WAV/yanzhao.wav")
+        safe_play_wav("WAV/yanzhao.wav")
         return True
 
     elif keywords == "youdiangan":
@@ -200,7 +200,7 @@ def control(keywords, brightness, safe_play_wav):
         time.sleep(0.5) 
         ser_zhuan.write(b'\x04')  # 转盘转到加湿器
         ser_zhuan.flush()
-        safe_play_wav("/WAV/jiashiqi.wav")
+        safe_play_wav("WAV/jiashiqi.wav")
         return True
     
     return False

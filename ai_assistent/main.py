@@ -156,14 +156,14 @@ def wake_listen_loop():
             wake_state = True
             send_assistant_event("wake")
             time.sleep(0.5) 
-            safe_play_wav("wake.wav")
+            safe_play_wav("WAV/wake.wav")
         elif keywords == "exit" and wake_state:
             # print("KUNKUN EXITED!", flush=True)
             wake_state = False
             recorder.stop()
             send_assistant_event("close")
             time.sleep(0.5) 
-            safe_play_wav("exit.wav")
+            safe_play_wav("WAV/exit.wav")
         
         time.sleep(0.02)
       
@@ -273,7 +273,7 @@ if __name__ == "__main__":
 
     # welcome.wav means all models and required hardware are ready.
     print("全部初始化完成，说“你好，困困”来唤醒我吧！", flush=True)
-    subprocess.run(aplay_cmd_for("welcome.wav"), check=True)
+    subprocess.run(aplay_cmd_for("WAV/welcome.wav"), check=True)
 
     print("进入主循环，等待唤醒词...", flush=True)
 
