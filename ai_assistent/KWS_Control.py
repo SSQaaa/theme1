@@ -132,16 +132,16 @@ def control(keywords, brightness, safe_play_wav):
     elif keywords == "ssz":   # 顺时针
         # print("KUNKUN WOKE UP!", flush=True)
         time.sleep(0.5) 
-        ser_zhuan.write(b'\x03')  
-        ser_zhuan.flush()
+        ser_mu.write(b'\x03')  
+        ser_mu.flush()
         safe_play_wav("WAV/welcome_VITS.wav")
         return True
     
     elif keywords == "nsz":   # 逆时针
         # print("KUNKUN WOKE UP!", flush=True)
         time.sleep(0.5) 
-        ser_zhuan.write(b'\x02')  
-        ser_zhuan.flush()
+        ser_mu.write(b'\x02')  
+        ser_mu.flush()
         safe_play_wav("WAV/welcome_VITS.wav")
         return True  
 
