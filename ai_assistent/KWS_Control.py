@@ -42,9 +42,9 @@ def control_int():
     time.sleep(0.5)
 
 def text_to_keyword(text):
-    if "耳塞" in text:
+    if "需要耳塞" in text:
         return "ersai"
-    elif "眼罩" in text:
+    elif "需要眼罩" in text:
         return "yanzhao"
     # elif "加湿器" in text:
     #     return "jiashiqi"
