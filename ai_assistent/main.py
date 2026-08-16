@@ -308,9 +308,11 @@ if __name__ == "__main__":
                     print("NO INPUT DETECTED, SKIPPING...")
                     continue
 
-                if "有点干" or "空气有点干" in text:
-                    llm_reply = "好的，已帮您开启加湿器。"
-                    print("KunKun says:", "好的，已帮您开启加湿器。")
+                if "睡不着" or "有点睡不着" in text:
+                    llm_reply = "睡不着也不用焦虑，不必逼着自己一定要马上睡着，安安静静躺着放松身体就很好。思绪乱一点也没关系，允许自己慢慢放空，好好善待此刻疲惫的自己，会慢慢困下来的。"
+                    print("KunKun says:", llm_reply)
+
+                
 
                 control_kws = text_to_keyword(text)
                 if control_kws:
